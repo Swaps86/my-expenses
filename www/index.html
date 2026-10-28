@@ -113,9 +113,39 @@ if(pp){var f=pp.f;s.innerHTML='<div class="ov"><div class="sheet"><div class="to
 function rng(){var d=new Date(today()+"T00:00:00");if(rp==="week"){var a=new Date(d);a.setDate(d.getDate()-(d.getDay()+6)%7);var b=new Date(a);b.setDate(a.getDate()+6);var f=function(x){return x.getFullYear()+"-"+pad(x.getMonth()+1)+"-"+pad(x.getDate())};return[f(a),f(b)]}if(rp==="month")return[ym+"-01",ym+"-31"];return[vals.rf||"0000-01-01",vals.rt||"9999-12-31"]}
 function rtx(){var r=rng();return S.tx.filter(function(t){return t.date>=r[0]&&t.date<=r[1]}).sort(function(a,b){return a.date<b.date?-1:1})}
 function dl(){var l=rtx(),c=0,k=0,r=rng();l.forEach(function(t){t.pay==="cash"?c+=t.amt:k+=t.amt});
-return '<div class="c"><b>Download report</b><div class="chips" style="margin-top:10px">'+[["week","Weekly"],["month","Monthly"],["custom","Custom"]].map(function(x){return '<button class="chip'+(rp===x[0]?" on":"")+'" data-act="rp" data-v="'+x[0]+'">'+x[1]+'</button>'}).join("")+'</div>'+(rp==="custom"?'<div style="display:flex;gap:8px;margin-top:10px"><input type="date" class="in" data-in="rf" value="'+(vals.rf||"")+'" aria-label="From date"><input type="date" class="in" data-in="rt" value="'+(vals.rt||"")+'" aria-label="To date"></div>':'<div class="mut" style="margin-top:8px">'+r[0]+' to '+r[1]+'</div>')+'<div class="mut" style="margin-top:10px">'+l.length+' entries &middot; Cash '+inr(c)+' &middot; Card '+inr(k)+' &middot; <b>Total '+inr(c+k)+'</b></div><div style="display:flex;gap:8px;margin-top:12px"><button class="sm" style="flex:1" data-act="csv">Excel (CSV)</button><button class="sm" style="flex:1" data-act="prt">Print / PDF</button></div></div>'}
+return '<div class="c"><b>Download report</b><div class="chips" style="margin-top:10px">'+[["week","Weekly"],["month","Monthly"],["custom","Custom"]].map(function(x){return '<button class="chip'+(rp===x[0]?" on":"")+'" data-act="rp" data-v="'+x[0]+'">'+x[1]+'</button>'}).join("")+'</div>'+(rp==="custom"?'<div style="display:flex;gap:8px;margin-top:10px"><input type="date" class="in" data-in="rf" value="'+(vals.rf||"")+'" aria-label="From date"><input type="date" class="in" data-in="rt" value="'+(vals.rt||"")+'" aria-label="To date"></div>':'<div class="mut" style="margin-top:8px">'+r[0]+' to '+r[1]+'</div>')+'<div class="mut" style="margin-top:10px">'+l.length+' entries &middot; Cash '+inr(c)+' &middot; Card '+inr(k)+' &middot; <b>Total '+inr(c+k)+'</b></div><div style="display:flex;gap:8px;margin-top:12px"><button class="sm" style="flex:1" data-act="csv">Excel (CSV)</button><button class="sm" style="flex:1" data-act="pdf">PDF</button></div>'+(rmsg?'<div class="mut" style="margin-top:10px">'+esc(rmsg)+'</div>':"")+'</div>'}
 report=function(){return _r()+dl()};
-function dlcsv(){var l=rtx(),o=["Date,Item,Paid with,Amount"],T=0;l.forEach(function(t){T+=t.amt;o.push([t.date,'"'+t.item.replace(/"/g,'""')+'"','"'+(t.pay==="cash"?"Cash":t.pay)+'"',t.amt].join(","))});o.push(",,Total,"+T);var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([o.join("\n")],{type:"text/csv"}));a.download="expenses-report.csv";document.body.appendChild(a);a.click();a.remove()}
+var CP=function(n){var C=window.Capacitor;return C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins[n]?C.Plugins[n]:null},rmsg="";
+function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h)%2147483000}
+function schedNotes(){var LN=CP("LocalNotifications");if(!LN)return;LN.requestPermissions().then(function(p){if(p.display!=="granted")return null;return LN.getPending()}).then(function(pe){if(!pe)return null;var ids=(pe.notifications||[]).map(function(x){return{id:x.id}});return ids.length?LN.cancel({notifications:ids}):0}).then(function(r){if(r===null)return;var list=[],now=Date.now(),y=today().slice(0,7);[y,shift(y,1)].forEach(function(mm){S.fixed.forEach(function(f){if(paidF(f,mm))return;if(f.type==="once"&&mm!==y)return;var d=dueOf(f,mm);(f.remind&&f.remind.length?f.remind:[1]).concat([0]).forEach(function(n){var t=new Date(d+"T09:00:00");t.setDate(t.getDate()-n);if(t.getTime()>now)list.push({id:hash(f.id+"|"+mm+"|"+n),title:f.name+(n?" is due in "+n+(n===1?" day":" days"):" is due today"),body:inr(f.amt)+" on "+d.slice(8)+"/"+d.slice(5,7)+"/"+d.slice(0,4),schedule:{at:t}})})})});if(list.length)return LN.schedule({notifications:list})}).catch(function(){})}
+var _sv=save;save=function(){_sv();schedNotes()};
+function saveFile(name,b,mime){var FS=CP("Filesystem"),SH=CP("Share");if(FS&&SH){FS.writeFile({path:name,data:b,directory:"CACHE"}).then(function(r){return SH.share({title:name,url:r.uri,dialogTitle:"Save or send your report"})}).then(function(){rmsg="Report ready: "+name;render()}).catch(function(e){rmsg="Could not share the file. Try again.";render()});return}
+var a=document.createElement("a");a.href="data:"+mime+";base64,"+b;a.download=name;document.body.appendChild(a);a.click();a.remove();rmsg="Report created: "+name;render()}
+function rrows(){return rtx().map(function(t){return[t.date.slice(8)+"/"+t.date.slice(5,7)+"/"+t.date.slice(0,4),t.item,t.pay==="cash"?"Cash":t.pay,t.amt]})}
+function dlcsv(){var o=["Date,Item,Paid with,Amount"],T=0;rtx().forEach(function(t){T+=t.amt;o.push([t.date,'"'+t.item.replace(/"/g,'""')+'"','"'+(t.pay==="cash"?"Cash":t.pay)+'"',t.amt].join(","))});o.push(",,Total,"+T);saveFile("expenses-report.csv",btoa(unescape(encodeURIComponent("\ufeff"+o.join("\n")))),"text/csv")}
+function num(n){return "Rs."+Math.round(n).toLocaleString("en-IN")}
+function dlpdf(){var r=rng(),rows=rrows(),c=0,k=0;rtx().forEach(function(t){t.pay==="cash"?c+=t.amt:k+=t.amt});var pg=[],cur=[],y=800;
+function T(x,yy,s,sz,b){cur.push("BT /"+(b?"F2":"F1")+" "+sz+" Tf "+x+" "+yy+" Td ("+String(s).replace(/[^\x20-\x7e]/g,"?").replace(/([()\\])/g,"\\$1")+") Tj ET")}
+function np(){pg.push(cur.join("\n"));cur=[];y=800}
+T(40,y,"My Expenses - Report",18,1);y-=22;T(40,y,rp==="month"?mname(ym):r[0]+" to "+r[1],11,0);y-=30;
+T(40,y,"Date",10,1);T(130,y,"Item",10,1);T(330,y,"Paid with",10,1);T(500,y,"Amount",10,1);y-=18;
+rows.forEach(function(x){if(y<80){np();T(40,y,"Date",10,1);T(130,y,"Item",10,1);T(330,y,"Paid with",10,1);T(500,y,"Amount",10,1);y-=18}T(40,y,x[0],10,0);T(130,y,x[1].slice(0,32),10,0);T(330,y,x[2].slice(0,18),10,0);T(500,y,num(x[3]),10,0);y-=16});
+if(!rows.length){T(40,y,"No entries in this period",10,0);y-=16}
+y-=12;if(y<110){np()}
+[["Total cash",c],["Total card",k],["Grand total",c+k]].forEach(function(x,i){var g=i===2;T(330,y,x[0],g?12:10,g);T(470,y,num(x[1]),g?12:10,g);y-=18});np();
+var n=pg.length,o=[],i,kids=[];
+o[1]="<< /Type /Catalog /Pages 2 0 R >>";
+for(i=0;i<n;i++)kids.push((5+i*2)+" 0 R");
+o[2]="<< /Type /Pages /Kids ["+kids.join(" ")+"] /Count "+n+" >>";
+o[3]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+o[4]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+for(i=0;i<n;i++){var s=pg[i]+"\nBT /F1 9 Tf 270 30 Td (Page "+(i+1)+" of "+n+") Tj ET";o[5+i*2]="<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents "+(6+i*2)+" 0 R >>";o[6+i*2]="<< /Length "+s.length+" >>\nstream\n"+s+"\nendstream"}
+var out="%PDF-1.4\n",offs=[],last=4+n*2,id;
+for(id=1;id<=last;id++){offs[id]=out.length;out+=id+" 0 obj\n"+o[id]+"\nendobj\n"}
+var xs=out.length;out+="xref\n0 "+(last+1)+"\n0000000000 65535 f \n";
+for(id=1;id<=last;id++)out+=String(offs[id]).padStart(10,"0")+" 00000 n \n";
+out+="trailer\n<< /Size "+(last+1)+" /Root 1 0 R >>\nstartxref\n"+xs+"\n%%EOF";
+saveFile("expenses-report.pdf",btoa(out),"application/pdf")}
 function sec(){return '<div class="c"><b>App lock (optional)</b>'+(S.pin?'<div class="mut" style="margin:8px 0">PIN lock is on</div><button class="sm" data-act="pinoff">Turn off</button>':'<div class="mut" style="margin:8px 0">Use a 4-number PIN, or leave it off</div><div style="display:flex;gap:8px"><input class="in" data-in="npin" inputmode="numeric" maxlength="4" placeholder="4 numbers" value="'+esc(vals.npin||"")+'" aria-label="New PIN"><button class="sm" data-act="setpin">Set PIN</button></div>'+(vals.pinerr?'<div class="err">Enter exactly 4 numbers</div>':""))+'</div><div class="c"><b>About</b><div class="mut" style="margin-top:8px;line-height:1.7">My Expenses &middot; Version 1.0.0<br>Created by Swapnil Palande<br>Your data stays on your phone.</div></div>'}
 manage=function(){return _m()+sec()};
 render=function(){_rd();$("#app").insertAdjacentHTML("beforeend",'<div class="cp">&copy; 2026 Swapnil Palande. All rights reserved.</div>')};
@@ -134,7 +164,7 @@ document.addEventListener("click",function(e){var t=e.target.closest("[data-act]
  else if(a==="pin"){if(v==="<")pinBuf=pinBuf.slice(0,-1);else if(pinBuf.length<4)pinBuf+=v;pinErr=0;if(pinBuf.length===4){if(pinBuf===S.pin)lockUI=false;else pinErr=1;pinBuf=""}sheet()}
  else if(a==="setpin"){var p=(vals.npin||"").trim();vals.pinerr=!/^\d{4}$/.test(p);if(!vals.pinerr){S.pin=p;S.lockOn=true;save();vals.npin=""}render()}
  else if(a==="pinoff"){S.pin=null;S.lockOn=false;save();render()}
- else if(a==="rp"){rp=v;render()}else if(a==="csv")dlcsv();else if(a==="prt")window.print();
+ else if(a==="rp"){rp=v;render()}else if(a==="csv")dlcsv();else if(a==="pdf")dlpdf();
 });
 function openAdd(){vals.amt="";draft={item:S.items[0]||"",pay:"cash",date:selDate&&tab==="days"?selDate:today()};sheet()}
 document.addEventListener("input",function(e){var n=e.target.dataset&&e.target.dataset.in;if(n)vals[n]=e.target.value;if(n==="dt"&&draft)draft.date=e.target.value});
@@ -158,5 +188,6 @@ document.addEventListener("click",function(e){var t=e.target.closest("[data-act]
 });
 if(budget(ym)==null){vals.sa="";setup={mode:"default"}}
 if(S.pin&&S.lockOn)lockUI=true;
+schedNotes();
 render();sheet();
 </script></body></html>
