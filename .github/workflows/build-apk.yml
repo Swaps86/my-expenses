@@ -11,6 +11,12 @@ jobs:
         with: {distribution: temurin, java-version: 17}
       - run: npm install
       - run: npx cap add android
+      - name: Add SMS reader
+        run: |
+          D=android/app/src/main/java/com/swapnilpalande/myexpenses
+          mkdir -p $D
+          cp native/*.java $D/
+          sed -i 's|<application|<uses-permission android:name="android.permission.READ_SMS" />\n    <application|' android/app/src/main/AndroidManifest.xml
       - run: npx --yes @capacitor/assets generate --android --iconBackgroundColor '#1F7A4D' --splashBackgroundColor '#1F7A4D'
         continue-on-error: true
       - run: npx cap sync android
